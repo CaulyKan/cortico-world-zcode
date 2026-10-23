@@ -113,6 +113,21 @@ describe('ZCode World', () => {
     expect(existsSync(join(scratchDir, 'home', '.zcode', 'cli', 'config.json'))).toBe(false);
   });
 
+  it('配置口令后,带错口令的钩子请求被拒绝,带对口的正常处理', async () => {
+    const { host, port } = await mounted({ hookToken: 's3cret' });
+    const wrong = await post(port, 'stop', { session_id: 's-t', cwd: 'Y:\\proj', last_assistant_message: 'x' });
+    expect(wrong).toBe(403);
+    const ok = await fetch(`http://127.0.0.1:${port}/api/event?type=stop&token=s3cret`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ session_id: 's-t', cwd: 'Y:\\proj', last_assistant_message: 'x' }),
+    });
+    expect(ok.status).toBe(204);
+    await new Promise((r) => setTimeout(r, 100));
+    // 没干过活,合法请求也不会推 session_done;这里只验证鉴权分支。
+    expect(host.events.map((e) => e.type)).toEqual(['zcode.started']);
+  });
+
   it('未干活的会话结束不推送 session_done', async () => {
     const { host, port } = await mounted();
     const status = await post(port, 'stop', {

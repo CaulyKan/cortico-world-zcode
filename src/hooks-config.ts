@@ -19,8 +19,8 @@ const FORWARDS: ReadonlyArray<readonly [string, string]> = [
   ['PostToolUse', 'tool'],
 ];
 
-export const hookForwardUrl = (port: number, query: string): string =>
-  `http://127.0.0.1:${port}/api/event?type=${query}`;
+export const hookForwardUrl = (port: number, query: string, token = ''): string =>
+  `http://127.0.0.1:${port}/api/event?type=${query}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
 
 export const zcodeConfigPath = (homeDir: string): string =>
   join(homeDir, '.zcode', 'cli', 'config.json');
@@ -54,7 +54,7 @@ const forwardHook = (url: string): HookEntry => ({
 
 const message = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-export function ensureHooks(configPath: string, port: number): EnsureHooksResult {
+export function ensureHooks(configPath: string, port: number, token = ''): EnsureHooksResult {
   const untouched = { changed: false, added: [] as string[], enabledSet: false };
   let root: Record<string, unknown>;
   if (existsSync(configPath)) {
@@ -80,7 +80,7 @@ export function ensureHooks(configPath: string, port: number): EnsureHooksResult
     : {};
   const added: string[] = [];
   for (const [event, query] of FORWARDS) {
-    const url = hookForwardUrl(port, query);
+    const url = hookForwardUrl(port, query, token);
     if (hasForward(events[event], url)) continue;
     // 只追加条目:已有的 matcher 组与别的钩子原样保留。
     const groups = Array.isArray(events[event]) ? [...(events[event] as unknown[])] : [];

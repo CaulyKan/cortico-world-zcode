@@ -13,6 +13,10 @@ export interface ZcodeConfigSection {
   taskTimeoutMinutes: number;
   /** 启动时检测 zcode 的钩子转发,缺失时自动补写 ~/.zcode/cli/config.json;重启实例生效。 */
   autoConfigureHooks: boolean;
+  /** HTTP 监听地址;127.0.0.1 只收本机,0.0.0.0 或具体网卡地址供远端钩子访问;重启实例生效。 */
+  listenAddress: string;
+  /** 钩子访问口令;非空时钩子 URL 必须带 ?token= 才被接受;重启实例生效。 */
+  hookToken: string;
 }
 
 export const ZCODE_DEFAULTS: ZcodeConfigSection = {
@@ -22,6 +26,8 @@ export const ZCODE_DEFAULTS: ZcodeConfigSection = {
   cliPath: '',
   taskTimeoutMinutes: 30,
   autoConfigureHooks: true,
+  listenAddress: '127.0.0.1',
+  hookToken: '',
 };
 
 /** World 配置的 JSON Schema 声明。 */
@@ -60,6 +66,18 @@ export const ZCODE_CONFIG_GROUP: ConfigGroup = {
         type: 'boolean',
         title: '自动配置 zcode 钩子',
         description: '启动时检测 zcode 的钩子转发,缺 Stop/PostToolUse 时自动补写到 ~/.zcode/cli/config.json 并启用 hooks;只追加,不改已有条目。',
+        'x-hot': false,
+      },
+      'worlds.zcode.listenAddress': {
+        type: 'string',
+        title: '监听地址',
+        description: '127.0.0.1 只收本机钩子;要让远程机器的钩子转发过来,填 0.0.0.0 并配置访问口令,同时在防火墙放行端口。',
+        'x-hot': false,
+      },
+      'worlds.zcode.hookToken': {
+        type: 'string',
+        title: '钩子访问口令',
+        description: '非空时钩子 URL 必须带 ?token=<口令> 才被接受;对外监听时务必设置。',
         'x-hot': false,
       },
     },

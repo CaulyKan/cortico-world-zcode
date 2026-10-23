@@ -32,6 +32,33 @@ Owner: `src/definition.ts`
 
 `PostToolUse` 负责活动记账(进展汇报与"干过活"判定都依赖它),`Stop` 负责完成通知。`PermissionRequest` 可选,本版收到即忽略。
 
+## 远程机器的钩子(ssh/wsl/docker 源服务器)
+
+钩子在**会话执行端**运行:远程 zcode 会话的钩子跑在远程机器上,读它自己的 `~/.zcode/cli/config.json`,`127.0.0.1` 也指向远程自己。要让远程会话的通知到达本机,需要两端各配一步:
+
+1. **本机扩展开放对外监听**:设置 `listenAddress` 为 `0.0.0.0`(或本机局域网 IP),并设置 `hookToken`(随机长字符串;对外监听必须设),重启实例。首次启动时 Windows 防火墙会询问,放行 Node.js/该端口。
+2. **远程机器配置钩子**:编辑远程的 `~/.zcode/cli/config.json`,把转发地址指向本机(用本机局域网 IP 或 `host.docker.internal` 等可达地址),并带上同一口令:
+
+```json
+{
+  "hooks": {
+    "enabled": true,
+    "events": {
+      "PostToolUse": [
+        { "hooks": [{ "type": "process", "command": "curl", "args": ["-s", "--max-time", "2", "--data-binary", "@-", "http://<本机IP>:4761/api/event?token=<口令>&type=tool"], "timeoutMs": 4000 }] }
+      ],
+      "Stop": [
+        { "hooks": [{ "type": "process", "command": "curl", "args": ["-s", "--max-time", "2", "--data-binary", "@-", "http://<本机IP>:4761/api/event?token=<口令>&type=stop"], "timeoutMs": 4000 }] }
+      ]
+    }
+  }
+}
+```
+
+wsl 源服务器可用宿主 IP(WSL 内 `grep nameserver /etc/resolv.conf` 的地址或宿主局域网 IP);docker 源服务器用 `host.docker.internal`;ssh 服务器用本机局域网 IP,要求两端网络互通。远程新起的会话生效。
+
+本机的自动配置不受影响:口令非空时,写入本机钩子的转发 URL 会自动带上同一口令。
+
 ## 配置项(`worlds.zcode`)
 
 | 键 | 默认 | 说明 |
@@ -41,6 +68,8 @@ Owner: `src/definition.ts`
 | `cliPath` | 空 | zcode CLI(`zcode.cjs`)完整路径;留空自动探测 ZCode Desktop 安装位置;重启实例生效 |
 | `taskTimeoutMinutes` | 30 | 后台任务超时;到点终止并通知 |
 | `autoConfigureHooks` | true | 启动时自动补写 zcode 钩子转发;重启实例生效 |
+| `listenAddress` | 127.0.0.1 | 接收端绑定地址;`0.0.0.0` 供远程钩子访问;重启实例生效 |
+| `hookToken` | 空 | 钩子访问口令;非空时钩子 URL 须带 `?token=`;对外监听时务必设置 |
 
 ## 从本机目录安装
 

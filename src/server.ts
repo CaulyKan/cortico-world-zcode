@@ -22,12 +22,21 @@ const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
+export interface HookServerOptions {
+  /** 监听端口;0 由系统分配。 */
+  port: number;
+  /** 绑定地址:127.0.0.1 只收本机,0.0.0.0/具体网卡地址供远端钩子访问。 */
+  address: string;
+  /** 非空时校验查询参数 token,拒绝伪造事件;空表示不校验。 */
+  token: string;
+}
+
 export class HookServer {
   private server: Server | null = null;
   private boundPort = 0;
 
   constructor(
-    private readonly port: number,
+    private readonly opts: HookServerOptions,
     private readonly handler: HookHandler,
   ) {}
 
@@ -43,10 +52,9 @@ export class HookServer {
     this.server = server;
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject);
-      // 只绑回环地址:事件来自本机的 zcode 钩子,不对外网开放。
-      server.listen(this.port, '127.0.0.1', () => {
+      server.listen(this.opts.port, this.opts.address, () => {
         const address = server.address();
-        this.boundPort = typeof address === 'object' && address ? address.port : this.port;
+        this.boundPort = typeof address === 'object' && address ? address.port : this.opts.port;
         resolve();
       });
     });
@@ -66,6 +74,10 @@ export class HookServer {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     if (req.method !== 'POST' || url.pathname !== '/api/event') {
       this.reply(res, 404);
+      return;
+    }
+    if (this.opts.token && url.searchParams.get('token') !== this.opts.token) {
+      this.reply(res, 403);
       return;
     }
     const kind = url.searchParams.get('type');

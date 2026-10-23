@@ -101,32 +101,58 @@ export class ZcodeWorld implements World {
 
   async start(host: WorldHost): Promise<void> {
     this.host = host;
-    this.server = new HookServer(this.opts.cfg.port, (payload) => this.onHookEvent(payload));
+    this.server = new HookServer(
+      {
+        port: this.opts.cfg.port,
+        address: this.opts.cfg.listenAddress.trim() || '127.0.0.1',
+        token: this.opts.cfg.hookToken.trim(),
+      },
+      (payload) => this.onHookEvent(payload),
+    );
     await this.server.start();
     this.timer = setInterval(() => this.tick(), TICK_MS);
+    const note = [
+      `ZCode World 已挂载,钩子接收端监听 ${this.listeningAddress}。`,
+      this.listeningAddress.startsWith('127.0.0.1') ? '' : '对外监听已开启,钩子 URL 须带 token。',
+      this.hookSetupNote(),
+    ]
+      .filter(Boolean)
+      .join('');
     await host.pushEvent({
       type: 'zcode.started',
       ts: nowIso(this.opts.timezone),
       source: this.id,
       origin: 'internal',
       senderKey: this.id,
-      text: `ZCode World 已挂载,钩子接收端监听 127.0.0.1:${this.server.actualPort}。${this.hookSetupNote()}`,
-      meta: { port: this.server.actualPort },
+      text: note,
+      meta: { port: this.server.actualPort, address: this.listeningAddress },
     });
+  }
+
+  /** 对外展示的监听口径:127.0.0.1 用端口表述,其他地址带完整地址。 */
+  private get listeningAddress(): string {
+    const address = this.opts.cfg.listenAddress.trim() || '127.0.0.1';
+    return address === '127.0.0.1'
+      ? `127.0.0.1:${this.server?.actualPort ?? this.opts.cfg.port}`
+      : `${address}:${this.server?.actualPort ?? this.opts.cfg.port}`;
   }
 
   /** 钩子自动配置的结果说明,拼进挂载事件让桌宠能转达配置状态。 */
   private hookSetupNote(): string {
     if (!this.opts.cfg.autoConfigureHooks) {
-      return '自动配置钩子已关闭;若 zcode 侧没有指向本端口的转发,将收不到通知。';
+      return ' 自动配置钩子已关闭;若 zcode 侧没有指向本端口的转发,将收不到通知。';
     }
-    const result = ensureHooks(zcodeConfigPath(this.homeDir), this.server?.actualPort ?? this.opts.cfg.port);
-    if (result.error) return `钩子自动配置失败:${result.error}`;
-    if (!result.changed) return 'zcode 钩子转发已就绪。';
+    const result = ensureHooks(
+      zcodeConfigPath(this.homeDir),
+      this.server?.actualPort ?? this.opts.cfg.port,
+      this.opts.cfg.hookToken.trim(),
+    );
+    if (result.error) return ` 钩子自动配置失败:${result.error}`;
+    if (!result.changed) return ' zcode 钩子转发已就绪。';
     const parts: string[] = [];
     if (result.added.length > 0) parts.push(`已补写 ${result.added.join('、')} 的转发`);
     if (result.enabledSet) parts.push('已启用 hooks');
-    return `钩子自动配置:${parts.join(',')};从新起的 zcode 会话开始生效。`;
+    return ` 钩子自动配置:${parts.join(',')};从新起的 zcode 会话开始生效。`;
   }
 
   async stop(): Promise<void> {

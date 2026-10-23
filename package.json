@@ -1,6 +1,6 @@
 {
   "name": "cortico-world-zcode",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Cortico World: 让 Coopanion 感知 ZCode 的任务动向,并把大任务派给后台 ZCode 无头实例",
   "license": "MIT",
